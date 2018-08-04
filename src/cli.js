@@ -1,7 +1,8 @@
 const commander = require("commander");
 const fs = require("fs");
-const cluster = require("./cluster");
-
+const { Logger } = require("./logger");
+const cluster = require("cluster");
+const { SSLocal } = require("./ssLocal");
 commander
     .option("-c, --config [configFile]", "server config file")
     .parse(process.argv);
@@ -15,7 +16,11 @@ function extend(target) {
     });
     return target;
 }
-
+function start(config) {
+    let logger = new Logger("ssLocal_");
+    let ssLocal = new SSLocal(config, logger);
+    ssLocal.startServer();
+}
 // callback (err, servers), err is an array, servers is an array
 function validateConfig(configFile, callback) {
     fs.readFile(configFile, "utf8", (err, data) => {
@@ -56,12 +61,12 @@ function validateConfig(configFile, callback) {
                 curSrv.timeout = 600;
             }
             let localAddrUrl = curSrv.localAddr + ":" + curSrv.localPort;
-            if (localAddrSet.has(localAddrUrl)) {
-                errors.push(
-                    `server #${i} - local address ${localAddrUrl} duplicated`
-                );
-                continue;
-            }
+            // if (localAddrSet.has(localAddrUrl)) {
+            //     errors.push(
+            //         `server #${i} - local address ${localAddrUrl} duplicated`
+            //     );
+            //     continue;
+            // }
             localAddrSet.add(localAddrUrl);
         }
         return callback(errors.length ? errors : null, servers);
@@ -84,8 +89,15 @@ module.exports = {
                 console.log(
                     `Trying to start ${servers.length} ss-local instances`
                 );
-                cluster.start(servers);
-                cluster.startWeb(commander.config.statusPort || 64444);
+                if (cluster.isMaster) {
+                    for (let i = 0; i < servers.length; i++) {
+                        cluster.fork();
+                    }
+                }else{
+                    const server = servers[cluster.worker.id-1]
+                    start(server);
+                }
+                
             });
         }
     }
