@@ -1,25 +1,22 @@
 {
   "statusPort": 64444,
-  "default" : {
-    "serverAddr": "1.2.3.4",
-    "serverPort": 8083,
-    "localAddr": "127.0.0.1",
+  "default": {
     "timeout": 600,
-    "method": "rc4-md5",
-    "password": "mypassword"
+    "method": "aes-256-cfb",
+    "password": ""
   },
   "servers": [
     {
-      "serverPort": 53,
-      "localPort": 10013
+      "serverAddr": "45.77.234.140",
+      "serverPort": 1080,
+      "localAddr": "127.0.0.1",
+      "localPort": 1081
     },
     {
-      "serverPort": 8090,
-      "localPort": 10014
-    },
-    {
-      "method": "table",
-      "localPort": 10015
+      "serverAddr": "45.76.149.219",
+      "serverPort": 995,
+      "localAddr": "127.0.0.1",
+      "localPort": 1082
     }
   ]
 }

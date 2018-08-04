@@ -1,0 +1,1 @@
+node bin/ss-cluster -c config.json
