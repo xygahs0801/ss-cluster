@@ -1,11 +1,7 @@
 const ip = require("ip");
 const { createServer, connect } = require("net");
-const {
-    getDstInfo,
-    writeOrPause,
-    getDstStr,
-    closeSilently
-} = require("./utils");
+const cluser = require("cluster");
+const { getDstInfo, writeOrPause, getDstStr, closeSilently } = require("./utils");
 const { createCipher, createDecipher } = require("./encryptor");
 const request = require("superagent");
 const SuperagentProxy = require("superagent-proxy");
@@ -86,11 +82,7 @@ SSLocal.prototype.handleRequest = function(
         repBuf.writeUInt32BE(isUDP4 ? 0x05000001 : 0x05000004);
         tmp = new Buffer(2);
         tmp.writeUInt16BE(localPort);
-        repBuf = Buffer.concat([
-            repBuf,
-            ip.toBuffer(isUDP4 ? localAddr : localAddrIPv6),
-            tmp
-        ]);
+        repBuf = Buffer.concat([repBuf, ip.toBuffer(isUDP4 ? localAddr : localAddrIPv6), tmp]);
 
         connection.write(repBuf);
 
@@ -99,10 +91,7 @@ SSLocal.prototype.handleRequest = function(
         };
     }
 
-    this.logger.verbose(
-        `connecting: ${ip.toString(dstInfo.dstAddr)}` +
-            `:${dstInfo.dstPort.readUInt16BE()}`
-    );
+    this.logger.verbose(`connecting: ${ip.toString(dstInfo.dstAddr)}` + `:${dstInfo.dstPort.readUInt16BE()}`);
 
     repBuf = new Buffer(10);
     repBuf.writeUInt32BE(0x05000001);
@@ -153,8 +142,7 @@ SSLocal.prototype.handleRequest = function(
 
     clientToRemote.on("error", e => {
         this.logger.warn(
-            "ssLocal error happened in clientToRemote when" +
-                ` connecting to ${getDstStr(dstInfo)}: ${e.message}`
+            "ssLocal error happened in clientToRemote when" + ` connecting to ${getDstStr(dstInfo)}: ${e.message}`
         );
 
         onDestroy();
@@ -193,6 +181,7 @@ SSLocal.prototype.handleConnection = function(config, connection) {
     let timer = null;
 
     connection.on("data", data => {
+        console.log(cluser.worker.id + "：接收到" + data.length + "字节数据");
         switch (stage) {
             case 0:
                 stage = handleMethod(connection, data);
@@ -202,9 +191,7 @@ SSLocal.prototype.handleConnection = function(config, connection) {
                 dstInfo = getDstInfo(data);
 
                 if (!dstInfo) {
-                    this.logger.warn(
-                        `Failed to get 'dstInfo' from parsing data: ${data}`
-                    );
+                    this.logger.warn(`Failed to get 'dstInfo' from parsing data: ${data}`);
                     connection.destroy();
                     return;
                 }
@@ -321,9 +308,7 @@ SSLocal.prototype.startServer = function() {
 
     this.server.listen(this.config.localPort);
 
-    this.logger.info(
-        `listening on ${this.config.localAddr}:${this.config.localPort}`
-    );
+    this.logger.info(`listening on ${this.config.localAddr}:${this.config.localPort}`);
 
     this.checkHealth();
     setInterval(() => {
