@@ -181,7 +181,7 @@ SSLocal.prototype.handleConnection = function(config, connection) {
     let timer = null;
 
     connection.on("data", data => {
-        console.log(cluser.worker.id + "：接收到" + data.length + "字节数据");
+        // console.log(cluser.worker.id + "：接收到" + data.length + "字节数据");
         switch (stage) {
             case 0:
                 stage = handleMethod(connection, data);
