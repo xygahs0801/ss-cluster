@@ -1,9 +1,10 @@
 {
     "statusPort": 64444,
     "default": {
-        "timeout": 6000,
+        "timeout": 16000,
         "method": "aes-256-cfb",
-        "password": ""
+        "password": "bihumanbu123A1!",
+        "diedTime": 120000
     },
     "servers": [
         {
@@ -13,8 +14,8 @@
             "localPort": 1081
         },
         {
-            "serverAddr": "45.76.149.219",
-            "serverPort": 995,
+            "serverAddr": "45.32.12.202",
+            "serverPort": 1080,
             "localAddr": "127.0.0.1",
             "localPort": 1082
         }
