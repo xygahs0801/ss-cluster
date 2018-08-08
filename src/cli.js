@@ -86,21 +86,28 @@ module.exports = {
                     }
                     var proxyPort = 1080;
                     net.createServer(function(socket) {
-                        const validServerCount = _.countBy(servers, e => !e.isDied);
-                        const rd = _.random(0, validServerCount - 1, false);
-                        const server = validServerCount[rd];
-                        console.log(server.localPort);
+                        const tmp_servers = [];
+                        for (let i = 0; i < servers.length; i++) {
+                            const server = servers[i];
+                            if (!server.isDied) {
+                                tmp_servers.push(server);
+                            }
+                        }
+                        const rd = _.random(0, tmp_servers.length - 1, false);
+                        const server = tmp_servers[rd];
+                        console.log(server);
                         var client = net.connect(server.localPort);
                         socket.pipe(client).pipe(socket);
-                        client.on("close", function() {
+                        client.on("close", () => {
                             // console.log("Client disconnected from proxy");
                         });
-                        client.on("error", function(err) {
+                        client.on("error", err => {
                             server.isDied = true;
                             setTimeout(() => {
                                 server.isDied = false;
-                            }, 10 * 60 * 1000);
-                            // console.log("Error: " + err.toString());
+                            }, server.diedTime || 10 * 60 * 1000);
+                            server.diedTime *= 1.5;
+                            console.log("Error: " + err.toString());
                         });
                     }).listen(proxyPort);
                 } else {

@@ -140,13 +140,13 @@ SSLocal.prototype.handleRequest = function(
         connection.end();
     });
 
-    clientToRemote.on("error", e => {
-        this.logger.warn(
-            "ssLocal error happened in clientToRemote when" + ` connecting to ${getDstStr(dstInfo)}: ${e.message}`
-        );
+    // clientToRemote.on("error", e => {
+    //     this.logger.warn(
+    //         "ssLocal error happened in clientToRemote when" + ` connecting to ${getDstStr(dstInfo)}: ${e.message}`
+    //     );
 
-        onDestroy();
-    });
+    //     onDestroy();
+    // });
 
     clientToRemote.on("close", e => {
         if (e) {
@@ -276,9 +276,9 @@ SSLocal.prototype.handleConnection = function(config, connection) {
         }
     });
 
-    connection.on("error", e => {
-        this.logger.warn(`error happened in client connection: ${e.message}`);
-    });
+    // connection.on("error", e => {
+    //     this.logger.warn(`error happened in client connection: ${e.message}`);
+    // });
 
     timer = setTimeout(() => {
         if (clientConnected) {
