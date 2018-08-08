@@ -1,6 +1,5 @@
 const ip = require("ip");
 const { createServer, connect } = require("net");
-const cluser = require("cluster");
 const { getDstInfo, writeOrPause, getDstStr, closeSilently } = require("./utils");
 const { createCipher, createDecipher } = require("./encryptor");
 const request = require("superagent");
@@ -140,13 +139,13 @@ SSLocal.prototype.handleRequest = function(
         connection.end();
     });
 
-    // clientToRemote.on("error", e => {
-    //     this.logger.warn(
-    //         "ssLocal error happened in clientToRemote when" + ` connecting to ${getDstStr(dstInfo)}: ${e.message}`
-    //     );
+    clientToRemote.on("error", e => {
+        this.logger.warn(
+            "ssLocal error happened in clientToRemote when" + ` connecting to ${getDstStr(dstInfo)}: ${e.message}`
+        );
 
-    //     onDestroy();
-    // });
+        onDestroy();
+    });
 
     clientToRemote.on("close", e => {
         if (e) {

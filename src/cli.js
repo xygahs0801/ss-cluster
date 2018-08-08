@@ -84,7 +84,6 @@ module.exports = {
                     for (let i = 0; i < servers.length; i++) {
                         cluster.fork();
                     }
-                    var proxyPort = 1080;
                     net.createServer(function(socket) {
                         const tmp_servers = [];
                         for (let i = 0; i < servers.length; i++) {
@@ -93,22 +92,43 @@ module.exports = {
                                 tmp_servers.push(server);
                             }
                         }
-                        const rd = _.random(0, tmp_servers.length - 1, false);
-                        const server = tmp_servers[rd];
-                        var client = net.connect(server.localPort);
+                        let rd = _.random(0, tmp_servers.length - 1, false);
+                        let server = tmp_servers[rd];
+                        if (!server) {
+                            socket.destroy();
+                            return;
+                        }
+                        server.diedTime = server.diedTime || 2 * 1000;
+                        let client = net.connect(server.localPort);
                         socket.pipe(client).pipe(socket);
-                        client.on("close", () => {
-                            // console.log("Client disconnected from proxy");
-                        });
-                        client.on("error", err => {
-                            server.isDied = true;
-                            setTimeout(() => {
-                                server.isDied = false;
-                            }, server.diedTime || 60 * 1000);
-                            server.diedTime *= 1.5;
-                            console.log("Error: " + err.toString());
-                        });
-                    }).listen(proxyPort);
+                        // client.on("close", onClose);
+                        // client.on("connect", onConnect);
+                        // client.on("error", onError.bind(this));
+                        function onClose() {}
+                        function onConnect() {
+                            // console.log(new Date().toLocaleString());
+                            // console.log(server);
+                            // server.isDied = false;
+                        }
+                        function onError(err) {
+                            // if (!server.isDied) {
+                            //     setTimeout(function() {
+                            //         server.isDied = false;
+                            //     }, server.diedTime);
+                            // }
+                            // server.isDied = true;
+                            // let rd = _.random(0, tmp_servers.length - 1, false);
+                            // let server2 = tmp_servers[rd];
+                            // if (!server2) {
+                            //     return;
+                            // }
+                            // let client = net.connect(server2.localPort);
+                            // client.on("close", onClose);
+                            // client.on("connect", onConnect);
+                            // client.on("error", onError.bind(this));
+                            // console.log("Error: " + err.toString());
+                        }
+                    }).listen(1080);
                 } else {
                     const server = servers[cluster.worker.id - 1];
                     start(server);
