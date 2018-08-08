@@ -3,6 +3,8 @@ const fs = require("fs");
 const { Logger } = require("./logger");
 const cluster = require("cluster");
 const { SSLocal } = require("./ssLocal");
+const net = require("net");
+const _ = require("lodash");
 commander
     .option("-c, --config [configFile]", "server config file")
     .parse(process.argv);
@@ -32,15 +34,19 @@ function validateConfig(configFile, callback) {
             return callback(["No defined servers in config file"], null);
         }
         // apply default to each server config
-        let servers = configObj.servers;
-        for (let i in servers) {
-            servers[i] = extend({}, configObj.default, servers[i]);
+        let config_servers = configObj.servers;
+        for (let i in config_servers) {
+            config_servers[i] = extend(
+                {},
+                configObj.default,
+                config_servers[i]
+            );
         }
         let errors = [];
         // validate each servers
         let localAddrSet = new Set();
-        for (let i in servers) {
-            let curSrv = servers[i];
+        for (let i in config_servers) {
+            let curSrv = config_servers[i];
             if (!curSrv.serverAddr || !curSrv.serverPort) {
                 errors.push(`server #${i} - serverAddr/serverPort not defined`);
                 continue;
@@ -61,15 +67,9 @@ function validateConfig(configFile, callback) {
                 curSrv.timeout = 600;
             }
             let localAddrUrl = curSrv.localAddr + ":" + curSrv.localPort;
-            // if (localAddrSet.has(localAddrUrl)) {
-            //     errors.push(
-            //         `server #${i} - local address ${localAddrUrl} duplicated`
-            //     );
-            //     continue;
-            // }
             localAddrSet.add(localAddrUrl);
         }
-        return callback(errors.length ? errors : null, servers);
+        return callback(errors.length ? errors : null, config_servers);
     });
 }
 
@@ -85,19 +85,36 @@ module.exports = {
                     err.forEach(e => console.log("  * " + e));
                     process.exit(2);
                 }
-                // start the ss-local instances
-                console.log(
-                    `Trying to start ${servers.length} ss-local instances`
-                );
                 if (cluster.isMaster) {
+                    console.log(
+                        `Trying to start ${servers.length} ss-local instances`
+                    );
                     for (let i = 0; i < servers.length; i++) {
                         cluster.fork();
                     }
-                }else{
-                    const server = servers[cluster.worker.id-1]
+                    var proxyPort = 1080;
+                    net.createServer(function(socket) {
+                        const tmp_servers = _.filter(servers, e => !e.isDied);
+                        const rd = _.random(0, tmp_servers.length - 1, false);
+                        const server = tmp_servers[rd];
+                        console.log(server.localPort);
+                        var client = net.connect(server.localPort);
+                        socket.pipe(client).pipe(socket);
+                        client.on("close", function() {
+                            // console.log("Client disconnected from proxy");
+                        });
+                        client.on("error", function(err) {
+                            server.isDied = true;
+                            setTimeout(() => {
+                                server.isDied = false;
+                            }, 10 * 60 * 1000);
+                            // console.log("Error: " + err.toString());
+                        });
+                    }).listen(proxyPort);
+                } else {
+                    const server = servers[cluster.worker.id - 1];
                     start(server);
                 }
-                
             });
         }
     }
