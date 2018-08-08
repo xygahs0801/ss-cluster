@@ -95,7 +95,6 @@ module.exports = {
                         }
                         const rd = _.random(0, tmp_servers.length - 1, false);
                         const server = tmp_servers[rd];
-                        console.log(server);
                         var client = net.connect(server.localPort);
                         socket.pipe(client).pipe(socket);
                         client.on("close", () => {
@@ -105,7 +104,7 @@ module.exports = {
                             server.isDied = true;
                             setTimeout(() => {
                                 server.isDied = false;
-                            }, server.diedTime || 10 * 60 * 1000);
+                            }, server.diedTime || 60 * 1000);
                             server.diedTime *= 1.5;
                             console.log("Error: " + err.toString());
                         });
