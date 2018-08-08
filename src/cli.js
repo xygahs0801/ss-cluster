@@ -5,9 +5,7 @@ const cluster = require("cluster");
 const { SSLocal } = require("./ssLocal");
 const net = require("net");
 const _ = require("lodash");
-commander
-    .option("-c, --config [configFile]", "server config file")
-    .parse(process.argv);
+commander.option("-c, --config [configFile]", "server config file").parse(process.argv);
 
 function extend(target) {
     var sources = [].slice.call(arguments, 1);
@@ -36,11 +34,7 @@ function validateConfig(configFile, callback) {
         // apply default to each server config
         let config_servers = configObj.servers;
         for (let i in config_servers) {
-            config_servers[i] = extend(
-                {},
-                configObj.default,
-                config_servers[i]
-            );
+            config_servers[i] = extend({}, configObj.default, config_servers[i]);
         }
         let errors = [];
         // validate each servers
@@ -86,17 +80,15 @@ module.exports = {
                     process.exit(2);
                 }
                 if (cluster.isMaster) {
-                    console.log(
-                        `Trying to start ${servers.length} ss-local instances`
-                    );
+                    console.log(`Trying to start ${servers.length} ss-local instances`);
                     for (let i = 0; i < servers.length; i++) {
                         cluster.fork();
                     }
                     var proxyPort = 1080;
                     net.createServer(function(socket) {
-                        const tmp_servers = _.filter(servers, e => !e.isDied);
-                        const rd = _.random(0, tmp_servers.length - 1, false);
-                        const server = tmp_servers[rd];
+                        const validServerCount = _.countBy(servers, e => !e.isDied);
+                        const rd = _.random(0, validServerCount - 1, false);
+                        const server = validServerCount[rd];
                         console.log(server.localPort);
                         var client = net.connect(server.localPort);
                         socket.pipe(client).pipe(socket);
