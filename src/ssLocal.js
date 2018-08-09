@@ -153,8 +153,9 @@ SSLocal.prototype.handleRequest = function(
 
 	clientToRemote.on("error", e => {
 		this.logger.warn(
-			"连接到远程服务器发生错误" +
-				` connecting to ${getDstStr(dstInfo)}: ${e.message}`
+			`${this.config.localPort}连接到远程服务器发生错误：${getDstStr(
+				dstInfo
+			)}: ${e.message}`
 		);
 		process.send({ error: "clientToRemoteError", config: this.config });
 		onDestroy();
@@ -325,32 +326,10 @@ SSLocal.prototype.startServer = function() {
 	this.logger.info(
 		`listening on ${this.config.localAddr}:${this.config.localPort}`
 	);
-
-	this.checkHealth();
-	setInterval(() => {
-		this.checkHealth();
-	}, 60 * 1000);
-
 	return {
 		server: this.server,
 		closeAll: this.closeAll
 	};
-};
-
-SSLocal.prototype.checkHealth = function() {
-	request
-		.get("http://whatismyip.akamai.com/")
-		.proxy("socks://127.0.0.1:" + this.config.localPort)
-		.end((err, res) => {
-			if (err) {
-				this.logger.error(`failed to detect connectivity: ${err}`);
-				this.lastStatus = "Error";
-			} else {
-				this.logger.verbose(`connectivity is cool! -- ${res.text}`);
-				this.lastStatus = "OK";
-				this.IP = res.text;
-			}
-		});
 };
 
 function SSLocal(config, logger) {

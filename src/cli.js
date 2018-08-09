@@ -104,7 +104,7 @@ module.exports = {
 							}
 						});
 					}
-					net.createServer(function(socket) {
+					net.createServer(socket => {
 						const valid_servers = [];
 						for (let i = 0; i < servers.length; i++) {
 							const server = servers[i];
@@ -119,6 +119,12 @@ module.exports = {
 							return;
 						}
 						let client = net.connect(server.localPort);
+						client.on("error", e => {
+							console.log(`连接本地客户端错误${e}`);
+						});
+						socket.on("error", e => {
+							// console.log(`负载均衡客户端接收到错误${e}`);
+						});
 						socket.pipe(client).pipe(socket);
 					}).listen(1080);
 				} else {
