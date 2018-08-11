@@ -1,11 +1,6 @@
 const ip = require("ip");
 const { createServer, connect } = require("net");
-const {
-	getDstInfo,
-	writeOrPause,
-	getDstStr,
-	closeSilently
-} = require("./utils");
+const { getDstInfo, writeOrPause, getDstStr, closeSilently } = require("./utils");
 const { createCipher, createDecipher } = require("./encryptor");
 const request = require("superagent");
 const SuperagentProxy = require("superagent-proxy");
@@ -13,334 +8,322 @@ const SuperagentProxy = require("superagent-proxy");
 SuperagentProxy(request);
 
 function handleMethod(connection, data) {
-	// +----+----------+----------+
-	// |VER | NMETHODS | METHODS  |
-	// +----+----------+----------+
-	// | 1  |    1     | 1 to 255 |
-	// +----+----------+----------+
-	const buf = new Buffer(2);
+    // +----+----------+----------+
+    // |VER | NMETHODS | METHODS  |
+    // +----+----------+----------+
+    // | 1  |    1     | 1 to 255 |
+    // +----+----------+----------+
+    const buf = new Buffer(2);
 
-	let method = -1;
+    let method = -1;
 
-	if (data.indexOf(0x00, 2) >= 0) {
-		method = 0;
-	}
+    if (data.indexOf(0x00, 2) >= 0) {
+        method = 0;
+    }
 
-	// allow `no authetication` or any usename/password
-	if (method === -1) {
-		// logger.warn(`unsupported method: ${data.toString('hex')}`);
-		buf.writeUInt16BE(0x05ff);
-		connection.write(buf);
-		connection.end();
-		return -1;
-	}
+    // allow `no authetication` or any usename/password
+    if (method === -1) {
+        // logger.warn(`unsupported method: ${data.toString('hex')}`);
+        buf.writeUInt16BE(0x05ff);
+        connection.write(buf);
+        connection.end();
+        return -1;
+    }
 
-	buf.writeUInt16BE(0x0500);
-	connection.write(buf);
+    buf.writeUInt16BE(0x0500);
+    connection.write(buf);
 
-	return method === 0 ? 1 : 3; // cannot be 3
+    return method === 0 ? 1 : 3; // cannot be 3
 }
 
 SSLocal.prototype.handleRequest = function(
-	connection,
-	data,
-	{ serverAddr, serverPort, password, method, localAddr, localPort },
-	dstInfo,
-	onConnect,
-	onDestroy,
-	isClientConnected
+    connection,
+    data,
+    { serverAddr, serverPort, password, method, localAddr, localPort, timeout },
+    dstInfo,
+    onConnect,
+    onDestroy,
+    isClientConnected
 ) {
-	const cmd = data[1];
-	const clientOptions = {
-		port: serverPort,
-		host: serverAddr
-	};
-	const isUDPRelay = cmd === 0x03;
+    const cmd = data[1];
+    const clientOptions = {
+        port: serverPort,
+        host: serverAddr
+    };
+    const isUDPRelay = cmd === 0x03;
 
-	let repBuf;
-	let tmp = null;
-	let decipher = null;
-	let decipheredData = null;
-	let cipher = null;
-	let cipheredData = null;
+    let repBuf;
+    let tmp = null;
+    let decipher = null;
+    let decipheredData = null;
+    let cipher = null;
+    let cipheredData = null;
 
-	if (cmd !== 0x01 && !isUDPRelay) {
-		this.logger.warn(`unsupported cmd: ${cmd}`);
-		return {
-			stage: -1
-		};
-	}
+    if (cmd !== 0x01 && !isUDPRelay) {
+        this.logger.warn(`unsupported cmd: ${cmd}`);
+        return {
+            stage: -1
+        };
+    }
 
-	// prepare data
+    // prepare data
 
-	// +----+-----+-------+------+----------+----------+
-	// |VER | REP |  RSV  | ATYP | BND.ADDR | BND.PORT |
-	// +----+-----+-------+------+----------+----------+
-	// | 1  |  1  | X'00' |  1   | Variable |    2     |
-	// +----+-----+-------+------+----------+----------+
+    // +----+-----+-------+------+----------+----------+
+    // |VER | REP |  RSV  | ATYP | BND.ADDR | BND.PORT |
+    // +----+-----+-------+------+----------+----------+
+    // | 1  |  1  | X'00' |  1   | Variable |    2     |
+    // +----+-----+-------+------+----------+----------+
 
-	if (isUDPRelay) {
-		const isUDP4 = dstInfo.atyp === 1;
+    if (isUDPRelay) {
+        const isUDP4 = dstInfo.atyp === 1;
 
-		repBuf = new Buffer(4);
-		repBuf.writeUInt32BE(isUDP4 ? 0x05000001 : 0x05000004);
-		tmp = new Buffer(2);
-		tmp.writeUInt16BE(localPort);
-		repBuf = Buffer.concat([
-			repBuf,
-			ip.toBuffer(isUDP4 ? localAddr : localAddrIPv6),
-			tmp
-		]);
+        repBuf = new Buffer(4);
+        repBuf.writeUInt32BE(isUDP4 ? 0x05000001 : 0x05000004);
+        tmp = new Buffer(2);
+        tmp.writeUInt16BE(localPort);
+        repBuf = Buffer.concat([repBuf, ip.toBuffer(isUDP4 ? localAddr : localAddrIPv6), tmp]);
 
-		connection.write(repBuf);
+        connection.write(repBuf);
 
-		return {
-			stage: -1
-		};
-	}
+        return {
+            stage: -1
+        };
+    }
 
-	this.logger.verbose(
-		`connecting: ${ip.toString(dstInfo.dstAddr)}` +
-			`:${dstInfo.dstPort.readUInt16BE()}`
-	);
+    this.logger.verbose(`connecting: ${ip.toString(dstInfo.dstAddr)}` + `:${dstInfo.dstPort.readUInt16BE()}`);
 
-	repBuf = new Buffer(10);
-	repBuf.writeUInt32BE(0x05000001);
-	repBuf.writeUInt32BE(0x00000000, 4, 4);
-	repBuf.writeUInt16BE(0, 8, 2);
+    repBuf = new Buffer(10);
+    repBuf.writeUInt32BE(0x05000001);
+    repBuf.writeUInt32BE(0x00000000, 4, 4);
+    repBuf.writeUInt16BE(0, 8, 2);
 
-	tmp = createCipher(password, method, data.slice(3)); // skip VER, CMD, RSV
-	cipher = tmp.cipher;
-	cipheredData = tmp.data;
+    tmp = createCipher(password, method, data.slice(3)); // skip VER, CMD, RSV
+    cipher = tmp.cipher;
+    cipheredData = tmp.data;
 
-	// connect
-	const clientToRemote = connect(
-		clientOptions,
-		() => {
-			onConnect();
-		}
-	);
+    // connect
+    const clientToRemote = connect(
+        clientOptions,
+        () => {
+            onConnect();
+        }
+    );
+    clientToRemote.setTimeout(timeout, () => {
+        this.logger.warn(`${this.config.localPort}连接服务器超时`);
+    });
+    clientToRemote.setKeepAlive(true, 500);
+    clientToRemote.on("data", remoteData => {
+        if (!decipher) {
+            tmp = createDecipher(password, method, remoteData);
+            if (!tmp) {
+                this.logger.warn(`get invalid msg`);
+                onDestroy();
+                return;
+            }
+            decipher = tmp.decipher;
+            decipheredData = tmp.data;
+        } else {
+            decipheredData = decipher.update(remoteData);
+        }
 
-	clientToRemote.on("data", remoteData => {
-		if (!decipher) {
-			tmp = createDecipher(password, method, remoteData);
-			if (!tmp) {
-				this.logger.warn(`get invalid msg`);
-				onDestroy();
-				return;
-			}
-			decipher = tmp.decipher;
-			decipheredData = tmp.data;
-		} else {
-			decipheredData = decipher.update(remoteData);
-		}
+        if (isClientConnected()) {
+            writeOrPause(clientToRemote, connection, decipheredData);
+            this.rx += decipheredData.length;
+        } else {
+            clientToRemote.destroy();
+        }
+    });
 
-		if (isClientConnected()) {
-			writeOrPause(clientToRemote, connection, decipheredData);
-			this.rx += decipheredData.length;
-		} else {
-			clientToRemote.destroy();
-		}
-	});
+    clientToRemote.on("drain", () => {
+        connection.resume();
+    });
 
-	clientToRemote.on("drain", () => {
-		connection.resume();
-	});
+    clientToRemote.on("end", () => {
+        connection.end();
+    });
 
-	clientToRemote.on("end", () => {
-		connection.end();
-	});
+    clientToRemote.on("error", e => {
+        this.logger.warn(`${this.config.localPort}连接到远程服务器发生错误：${getDstStr(dstInfo)}: ${e.message}`);
+        process.send({ error: "clientToRemoteError", config: this.config });
+        onDestroy();
+    });
 
-	clientToRemote.on("error", e => {
-		this.logger.warn(
-			`${this.config.localPort}连接到远程服务器发生错误：${getDstStr(
-				dstInfo
-			)}: ${e.message}`
-		);
-		process.send({ error: "clientToRemoteError", config: this.config });
-		onDestroy();
-	});
+    clientToRemote.on("close", e => {
+        if (e) {
+            connection.destroy();
+        } else {
+            connection.end();
+        }
+    });
 
-	clientToRemote.on("close", e => {
-		if (e) {
-			connection.destroy();
-		} else {
-			connection.end();
-		}
-	});
+    // write
+    connection.write(repBuf);
+    this.tx += repBuf.length;
 
-	// write
-	connection.write(repBuf);
-	this.tx += repBuf.length;
+    writeOrPause(connection, clientToRemote, cipheredData);
+    this.tx += cipheredData.length;
 
-	writeOrPause(connection, clientToRemote, cipheredData);
-	this.tx += cipheredData.length;
-
-	return {
-		stage: 2,
-		cipher,
-		clientToRemote
-	};
+    return {
+        stage: 2,
+        cipher,
+        clientToRemote
+    };
 };
 
 SSLocal.prototype.handleConnection = function(config, connection) {
-	let stage = 0;
-	let clientToRemote;
-	let tmp;
-	let cipher;
-	let dstInfo;
-	let remoteConnected = false;
-	let clientConnected = true;
-	let timer = null;
+    let stage = 0;
+    let clientToRemote;
+    let tmp;
+    let cipher;
+    let dstInfo;
+    let remoteConnected = false;
+    let clientConnected = true;
+    let timer = null;
 
-	connection.on("data", data => {
-		// console.log(cluser.worker.id + "：接收到" + data.length + "字节数据");
-		switch (stage) {
-			case 0:
-				stage = handleMethod(connection, data);
+    connection.on("data", data => {
+        // console.log(cluser.worker.id + "：接收到" + data.length + "字节数据");
+        switch (stage) {
+            case 0:
+                stage = handleMethod(connection, data);
 
-				break;
-			case 1:
-				dstInfo = getDstInfo(data);
+                break;
+            case 1:
+                dstInfo = getDstInfo(data);
 
-				if (!dstInfo) {
-					this.logger.warn(
-						`Failed to get 'dstInfo' from parsing data: ${data}`
-					);
-					connection.destroy();
-					return;
-				}
+                if (!dstInfo) {
+                    this.logger.warn(`Failed to get 'dstInfo' from parsing data: ${data}`);
+                    connection.destroy();
+                    return;
+                }
 
-				tmp = this.handleRequest(
-					connection,
-					data,
-					config,
-					dstInfo,
-					() => {
-						// after connected
-						remoteConnected = true;
-					},
-					() => {
-						// get invalid msg or err happened
-						if (remoteConnected) {
-							remoteConnected = false;
-							clientToRemote.destroy();
-						}
+                tmp = this.handleRequest(
+                    connection,
+                    data,
+                    config,
+                    dstInfo,
+                    () => {
+                        // after connected
+                        remoteConnected = true;
+                    },
+                    () => {
+                        // get invalid msg or err happened
+                        if (remoteConnected) {
+                            remoteConnected = false;
+                            clientToRemote.destroy();
+                        }
 
-						if (clientConnected) {
-							clientConnected = false;
-							connection.destroy();
-						}
-					},
-					() => clientConnected
-				);
+                        if (clientConnected) {
+                            clientConnected = false;
+                            connection.destroy();
+                        }
+                    },
+                    () => clientConnected
+                );
 
-				stage = tmp.stage;
+                stage = tmp.stage;
 
-				if (stage === 2) {
-					clientToRemote = tmp.clientToRemote;
-					cipher = tmp.cipher;
-				} else {
-					// udp relay
-					clientConnected = false;
-					connection.end();
-				}
+                if (stage === 2) {
+                    clientToRemote = tmp.clientToRemote;
+                    cipher = tmp.cipher;
+                } else {
+                    // udp relay
+                    clientConnected = false;
+                    connection.end();
+                }
 
-				break;
-			case 2:
-				tmp = cipher.update(data);
+                break;
+            case 2:
+                tmp = cipher.update(data);
 
-				writeOrPause(connection, clientToRemote, tmp);
+                writeOrPause(connection, clientToRemote, tmp);
 
-				break;
-			// case 3:
-			//   // rfc 1929 username/password authetication
-			//   stage = usernamePasswordAuthetication(connection, data, authInfo);
-			//   break;
-			default:
-				return;
-		}
-	});
+                break;
+            // case 3:
+            //   // rfc 1929 username/password authetication
+            //   stage = usernamePasswordAuthetication(connection, data, authInfo);
+            //   break;
+            default:
+                return;
+        }
+    });
 
-	connection.on("drain", () => {
-		if (remoteConnected) {
-			clientToRemote.resume();
-		}
-	});
+    connection.on("drain", () => {
+        if (remoteConnected) {
+            clientToRemote.resume();
+        }
+    });
 
-	connection.on("end", () => {
-		clientConnected = false;
-		if (remoteConnected) {
-			clientToRemote.end();
-		}
-	});
+    connection.on("end", () => {
+        clientConnected = false;
+        if (remoteConnected) {
+            clientToRemote.end();
+        }
+    });
 
-	connection.on("close", e => {
-		if (timer) {
-			clearTimeout(timer);
-		}
+    connection.on("close", e => {
+        if (timer) {
+            clearTimeout(timer);
+        }
 
-		clientConnected = false;
+        clientConnected = false;
 
-		if (remoteConnected) {
-			if (e) {
-				clientToRemote.destroy();
-			} else {
-				clientToRemote.end();
-			}
-		}
-	});
+        if (remoteConnected) {
+            if (e) {
+                clientToRemote.destroy();
+            } else {
+                clientToRemote.end();
+            }
+        }
+    });
 
-	connection.on("error", e => {
-		this.logger.warn(`error happened in client connection: ${e.message}`);
-	});
+    connection.on("error", e => {
+        this.logger.warn(`error happened in client connection: ${e.message}`);
+    });
 
-	timer = setTimeout(() => {
-		if (clientConnected) {
-			connection.destroy();
-		}
+    timer = setTimeout(() => {
+        if (clientConnected) {
+            connection.destroy();
+        }
 
-		if (remoteConnected) {
-			clientToRemote.destroy();
-		}
-	}, config.timeout * 1000);
+        if (remoteConnected) {
+            clientToRemote.destroy();
+        }
+    }, config.timeout);
 };
 
 SSLocal.prototype.closeAll = function() {
-	closeSilently(this.server);
+    closeSilently(this.server);
 };
 
 SSLocal.prototype.startServer = function() {
-	this.server = createServer(this.handleConnection.bind(this, this.config));
+    this.server = createServer(this.handleConnection.bind(this, this.config));
 
-	this.server.on("close", () => {
-		this.logger.warn(`server closed`);
-	});
+    this.server.on("close", () => {
+        this.logger.warn(`server closed`);
+    });
 
-	this.server.on("error", e => {
-		this.logger.error(`启动客户端发生错误：${e.message}`);
-	});
+    this.server.on("error", e => {
+        this.logger.error(`启动客户端发生错误：${e.message}`);
+    });
 
-	this.server.listen(this.config.localPort);
+    this.server.listen(this.config.localPort);
 
-	this.logger.info(
-		`listening on ${this.config.localAddr}:${this.config.localPort}`
-	);
-	return {
-		server: this.server,
-		closeAll: this.closeAll
-	};
+    this.logger.info(`listening on ${this.config.localAddr}:${this.config.localPort}`);
+    return {
+        server: this.server,
+        closeAll: this.closeAll
+    };
 };
 
 function SSLocal(config, logger) {
-	this.config = Object.assign({}, config);
-	this.logger = logger;
-	this.tx = 0;
-	this.rx = 0;
-	this.lastStatus = "Unknown";
-	this.IP = "";
+    this.config = Object.assign({}, config);
+    this.logger = logger;
+    this.tx = 0;
+    this.rx = 0;
+    this.lastStatus = "Unknown";
+    this.IP = "";
 }
 
 module.exports = {
-	SSLocal
+    SSLocal
 };
